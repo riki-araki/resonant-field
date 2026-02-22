@@ -36,6 +36,7 @@ const captureCurrentValues = (): PresetValues => {
 
   return {
     Shader: {
+      geometry: get('Shader.geometry') as string,
       noiseScale: get('Shader.noiseScale') as number,
       noiseSpeed: get('Shader.noiseSpeed') as number,
       baseDisplacement: get('Shader.baseDisplacement') as number,

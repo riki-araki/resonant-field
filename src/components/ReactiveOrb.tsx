@@ -1,7 +1,18 @@
 import { useEffect, useMemo, useRef, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useControls } from 'leva'
-import { Color, Float32BufferAttribute, type Mesh, type ShaderMaterial } from 'three'
+import {
+  BufferGeometry,
+  Color,
+  Float32BufferAttribute,
+  IcosahedronGeometry,
+  PlaneGeometry,
+  SphereGeometry,
+  TorusGeometry,
+  TorusKnotGeometry,
+  type Mesh,
+  type ShaderMaterial,
+} from 'three'
 import type { FrequencyBands } from '../types/audio'
 
 import vertexShader from '../shaders/orb.vert?raw'
@@ -26,6 +37,19 @@ const BARYCENTRIC_VECTORS = [
 // hex→vec3変換用の再利用インスタンス（useFrame内でのアロケーション回避）
 const _color = new Color()
 
+export const GEOMETRY_TYPES = ['sphere', 'icosahedron', 'torus', 'torusKnot', 'plane'] as const
+export type GeometryType = typeof GEOMETRY_TYPES[number]
+
+const createRawGeometry = (type: GeometryType): BufferGeometry => {
+  switch (type) {
+    case 'sphere':       return new SphereGeometry(0.6, 48, 48)
+    case 'icosahedron':  return new IcosahedronGeometry(0.6, 2)
+    case 'torus':        return new TorusGeometry(0.45, 0.2, 32, 64)
+    case 'torusKnot':    return new TorusKnotGeometry(0.4, 0.15, 128, 32)
+    case 'plane':        return new PlaneGeometry(1.4, 1.4, 64, 64)
+  }
+}
+
 type Props = {
   bandsRef: RefObject<FrequencyBands>
 }
@@ -37,6 +61,7 @@ export const ReactiveOrb = ({ bandsRef }: Props) => {
   // leva: "Shader" フォルダにグルーピングされたコントロール群
   // useControls の返り値はスライダーを動かすたびにリアルタイムに変わる
   const {
+    geometry: geometryType,
     noiseScale,
     noiseSpeed,
     baseDisplacement,
@@ -47,6 +72,7 @@ export const ReactiveOrb = ({ bandsRef }: Props) => {
     coldTint,
     wireColor,
   } = useControls('Shader', {
+    geometry:         { value: 'sphere' as string, options: [...GEOMETRY_TYPES] },
     noiseScale:       { value: 1.5,  min: 0.5, max: 4.0, step: 0.1 },
     noiseSpeed:       { value: 0.3,  min: 0.0, max: 1.0, step: 0.01 },
     baseDisplacement: { value: 0.1,  min: 0.0, max: 0.5, step: 0.01 },
@@ -79,17 +105,16 @@ export const ReactiveOrb = ({ bandsRef }: Props) => {
     [],
   )
 
-  // マウント時にジオメトリを非インデックス化して重心座標を注入
+  // geometryType が変わるたびにジオメトリを生成し直す
   useEffect(() => {
     const mesh = meshRef.current
     if (!mesh) return
 
-    // toNonIndexed: インデックス付き → 頂点展開
-    // インデックス付きだと頂点が共有されるため、三角形ごとに異なる値を割り当てられない
-    const nonIndexed = mesh.geometry.toNonIndexed()
-    const count = nonIndexed.attributes.position.count
+    const raw = createRawGeometry(geometryType as GeometryType)
+    const nonIndexed = raw.toNonIndexed()
+    raw.dispose()
 
-    // 頂点数分の重心座標を生成（3頂点 × 繰り返し）
+    const count = nonIndexed.attributes.position.count
     const barycentric = new Float32Array(count * 3)
     for (let i = 0; i < count; i++) {
       const idx = (i % 3) * 3
@@ -97,10 +122,15 @@ export const ReactiveOrb = ({ bandsRef }: Props) => {
       barycentric[i * 3 + 1] = BARYCENTRIC_VECTORS[idx + 1]
       barycentric[i * 3 + 2] = BARYCENTRIC_VECTORS[idx + 2]
     }
-
     nonIndexed.setAttribute('aBarycentric', new Float32BufferAttribute(barycentric, 3))
+
+    const old = mesh.geometry
     mesh.geometry = nonIndexed
-  }, [])
+
+    return () => {
+      old.dispose()
+    }
+  }, [geometryType])
 
   useFrame((state) => {
     const mat = materialRef.current
@@ -131,7 +161,6 @@ export const ReactiveOrb = ({ bandsRef }: Props) => {
 
   return (
     <mesh ref={meshRef}>
-      <sphereGeometry args={[0.6, 48, 48]} />
       <shaderMaterial
         ref={materialRef}
         vertexShader={vertexShader}

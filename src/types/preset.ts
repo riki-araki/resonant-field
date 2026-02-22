@@ -6,6 +6,7 @@
  */
 export type PresetValues = {
   Shader: {
+    geometry: string
     noiseScale: number
     noiseSpeed: number
     baseDisplacement: number

@@ -5,6 +5,7 @@ export const BUILTIN_PRESETS: Preset[] = [
     name: 'Cold',
     values: {
       Shader: {
+        geometry: 'sphere',
         noiseScale: 1.5,
         noiseSpeed: 0.3,
         baseDisplacement: 0.1,
@@ -33,6 +34,7 @@ export const BUILTIN_PRESETS: Preset[] = [
     name: 'Aggressive',
     values: {
       Shader: {
+        geometry: 'icosahedron',
         noiseScale: 3.2,
         noiseSpeed: 0.7,
         baseDisplacement: 0.35,
@@ -61,6 +63,7 @@ export const BUILTIN_PRESETS: Preset[] = [
     name: 'Minimal',
     values: {
       Shader: {
+        geometry: 'plane',
         noiseScale: 0.8,
         noiseSpeed: 0.1,
         baseDisplacement: 0.02,
@@ -89,6 +92,7 @@ export const BUILTIN_PRESETS: Preset[] = [
     name: 'Ethereal',
     values: {
       Shader: {
+        geometry: 'torusKnot',
         noiseScale: 2.0,
         noiseSpeed: 0.15,
         baseDisplacement: 0.2,

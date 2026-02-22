@@ -1,12 +1,12 @@
 import { useMemo, useRef, type RefObject } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { button, buttonGroup, useControls } from 'leva'
+import { button, buttonGroup, levaStore, useControls } from 'leva'
 import { useAudio } from './hooks/useAudio'
 import { useFrequency } from './hooks/useFrequency'
 import { usePresets } from './hooks/usePresets'
 import { useScreenshot } from './hooks/useScreenshot'
 import { useKeyboard } from './hooks/useKeyboard'
-import { ReactiveOrb } from './components/ReactiveOrb'
+import { ReactiveOrb, GEOMETRY_TYPES } from './components/ReactiveOrb'
 import { AudioBloom } from './components/AudioBloom'
 import { BUILTIN_PRESETS } from './presets'
 import type { FrequencyBands } from './types/audio'
@@ -107,10 +107,18 @@ export const App = () => {
     }),
   }), [builtinButtons, saveCurrent])
 
-  // キーボードショートカット: 数字でプリセット切替、S でスクリーンショット
+  // キーボードショートカット: 数字でプリセット切替、S でスクリーンショット、G でジオメトリ巡回
   const keyMap = useMemo(() => {
     const map: Record<string, () => void> = {
       s: () => screenshotRef.current?.(),
+      g: () => {
+        const data = levaStore.getData()
+        const item = data['Shader.geometry']
+        const current = (item && 'value' in item ? item.value : 'sphere') as string
+        const idx = GEOMETRY_TYPES.indexOf(current as typeof GEOMETRY_TYPES[number])
+        const next = GEOMETRY_TYPES[(idx + 1) % GEOMETRY_TYPES.length]
+        levaStore.set({ 'Shader.geometry': next }, false)
+      },
     }
     for (let i = 0; i < allPresets.length && i < 9; i++) {
       map[String(i + 1)] = () => applyByIndex(i)
