@@ -2,6 +2,7 @@ import { Canvas } from '@react-three/fiber'
 import { useAudio } from './hooks/useAudio'
 import { useFrequency } from './hooks/useFrequency'
 import { ReactiveOrb } from './components/ReactiveOrb'
+import { AudioBloom } from './components/AudioBloom'
 
 /**
  * Scene — R3F の Canvas 内で動くシーン
@@ -14,9 +15,10 @@ const Scene = ({ analyser }: { analyser: React.RefObject<AnalyserNode | null> })
 
   return (
     <>
-      {/* 環境光: シーン全体をほんのり照らす（影なし） */}
       <ambientLight intensity={0.2} />
       <ReactiveOrb bandsRef={bandsRef} />
+      {/* ポストプロセス: Canvasの描画結果に対して画面全体にエフェクトをかける */}
+      <AudioBloom bandsRef={bandsRef} />
     </>
   )
 }
@@ -41,7 +43,11 @@ export const App = () => {
         cursor: isCapturing ? 'default' : 'pointer',
       }}
     >
-      <Canvas camera={{ position: [0, 0, 4], fov: 60 }}>
+      {/* gl.autoClear=false: EffectComposerが描画を制御するため、R3Fの自動クリアを無効化 */}
+      <Canvas
+        camera={{ position: [0, 0, 4], fov: 60 }}
+        gl={{ autoClear: false }}
+      >
         <Scene analyser={analyser} />
       </Canvas>
 
