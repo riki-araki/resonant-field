@@ -1,9 +1,14 @@
+import { useMemo, useRef, type RefObject } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { useControls } from 'leva'
+import { button, buttonGroup, useControls } from 'leva'
 import { useAudio } from './hooks/useAudio'
 import { useFrequency } from './hooks/useFrequency'
+import { usePresets } from './hooks/usePresets'
+import { useScreenshot } from './hooks/useScreenshot'
+import { useKeyboard } from './hooks/useKeyboard'
 import { ReactiveOrb } from './components/ReactiveOrb'
 import { AudioBloom } from './components/AudioBloom'
+import { BUILTIN_PRESETS } from './presets'
 import type { FrequencyBands } from './types/audio'
 
 /**
@@ -16,7 +21,7 @@ import type { FrequencyBands } from './types/audio'
  * CameraRig — カメラをゆっくり自動旋回させる
  * 球体の周りを一定速度で周回。音量で距離が微妙に変わる（呼吸感）
  */
-const CameraRig = ({ bandsRef }: { bandsRef: React.RefObject<FrequencyBands> }) => {
+const CameraRig = ({ bandsRef }: { bandsRef: RefObject<FrequencyBands> }) => {
   // leva: "Camera" フォルダにグルーピング
   const { distance, orbitSpeed, verticalAmp } = useControls('Camera', {
     distance:    { value: 4.0, min: 2.0, max: 8.0, step: 0.1 },
@@ -41,7 +46,22 @@ const CameraRig = ({ bandsRef }: { bandsRef: React.RefObject<FrequencyBands> }) 
   return null
 }
 
-const Scene = ({ analyser }: { analyser: React.RefObject<AnalyserNode | null> }) => {
+/**
+ * ScreenshotCapture — Canvas内でスクショを実行するコンポーネント
+ *
+ * useScreenshot は useFrame(priority 2) を使うので Canvas 内に配置が必要。
+ * trigger 関数を外から受け取り、ref 経由で呼び出せるようにする。
+ */
+const ScreenshotCapture = ({ triggerRef }: { triggerRef: RefObject<(() => void) | null> }) => {
+  const { trigger } = useScreenshot()
+  triggerRef.current = trigger
+  return null
+}
+
+const Scene = ({ analyser, screenshotRef }: {
+  analyser: RefObject<AnalyserNode | null>
+  screenshotRef: RefObject<(() => void) | null>
+}) => {
   const bandsRef = useFrequency(analyser)
 
   return (
@@ -50,6 +70,7 @@ const Scene = ({ analyser }: { analyser: React.RefObject<AnalyserNode | null> })
       <ReactiveOrb bandsRef={bandsRef} />
       <CameraRig bandsRef={bandsRef} />
       <AudioBloom bandsRef={bandsRef} />
+      <ScreenshotCapture triggerRef={screenshotRef} />
     </>
   )
 }
@@ -63,6 +84,41 @@ const Scene = ({ analyser }: { analyser: React.RefObject<AnalyserNode | null> })
  */
 export const App = () => {
   const { analyser, isCapturing, startCapture } = useAudio()
+  const { allPresets, applyPreset, applyByIndex, saveCurrent } = usePresets()
+  const screenshotRef = useRef<(() => void) | null>(null)
+
+  // leva: "Presets" フォルダ — プリセット切替 + 保存 + スクリーンショット
+  const builtinButtons = useMemo(() => {
+    const group: Record<string, () => void> = {}
+    for (const preset of BUILTIN_PRESETS) {
+      group[preset.name] = () => applyPreset(preset)
+    }
+    return group
+  }, [applyPreset])
+
+  useControls('Presets', () => ({
+    ' ': buttonGroup(builtinButtons),
+    'Save Current': button(() => {
+      const name = window.prompt('Preset name:')
+      if (name?.trim()) saveCurrent(name.trim())
+    }),
+    'Screenshot': button(() => {
+      screenshotRef.current?.()
+    }),
+  }), [builtinButtons, saveCurrent])
+
+  // キーボードショートカット: 数字でプリセット切替、S でスクリーンショット
+  const keyMap = useMemo(() => {
+    const map: Record<string, () => void> = {
+      s: () => screenshotRef.current?.(),
+    }
+    for (let i = 0; i < allPresets.length && i < 9; i++) {
+      map[String(i + 1)] = () => applyByIndex(i)
+    }
+    return map
+  }, [allPresets, applyByIndex])
+
+  useKeyboard(keyMap)
 
   return (
     <div
@@ -74,12 +130,12 @@ export const App = () => {
         cursor: isCapturing ? 'default' : 'pointer',
       }}
     >
-      {/* gl.autoClear=false: EffectComposerが描画を制御するため、R3Fの自動クリアを無効化 */}
+      {/* preserveDrawingBuffer: スクリーンショット用。toDataURL()が空画像を返さないようにする */}
       <Canvas
         camera={{ position: [0, 0, 4], fov: 60 }}
-        gl={{ autoClear: false }}
+        gl={{ autoClear: false, preserveDrawingBuffer: true }}
       >
-        <Scene analyser={analyser} />
+        <Scene analyser={analyser} screenshotRef={screenshotRef} />
       </Canvas>
 
       {/* キャプチャ未開始時のみ表示する最小UI */}

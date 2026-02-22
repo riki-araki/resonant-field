@@ -22,10 +22,14 @@ Abletonの音にリアクティブに反応する没入型3D作品。
 ```
 src/
   main.tsx          # エントリポイント
-  App.tsx           # Canvas + シーン構成
+  App.tsx           # Canvas + シーン構成 + プリセットUI統合
+  presets.ts        # ビルトインプリセット4種のデータ
   hooks/            # カスタムフック（ロジック層）
     useAudio.ts     # Web Audio API / getDisplayMedia
     useFrequency.ts # 周波数解析・バンド分離
+    usePresets.ts   # levaStore経由のプリセット管理 + localStorage永続化
+    useScreenshot.ts # Canvas→PNG キャプチャ + ダウンロード
+    useKeyboard.ts  # キーボードショートカット登録
   components/       # R3Fコンポーネント（描画層）
     ReactiveOrb.tsx # メインビジュアル（Shader GUI付き）
     AudioBloom.tsx  # ポストプロセッシング（PostFX GUI付き）
@@ -34,6 +38,7 @@ src/
     orb.frag        # フラグメントシェーダー
   types/            # 型定義
     audio.ts        # オーディオ関連の型
+    preset.ts       # プリセット関連の型
   utils/            # ユーティリティ（純粋関数）
 doc/                # ドキュメント（.gitignore対象）
 ```
@@ -94,9 +99,33 @@ uniform vec3  uWireColor;        // ワイヤー色 (color picker)
 ### leva GUI Convention
 
 - 各コンポーネントが `useControls("フォルダ名", { ... })` で自分のパラメータを管理
-- フォルダ: Shader / PostFX / Camera
+- フォルダ: Shader / PostFX / Camera / Presets
 - useEffect の依存配列に leva 値を入れない（再生成を避ける）→ useFrame で毎フレーム反映
 - カラー値は hex → Three.js Color で変換してシェーダーに渡す
+
+### Preset System
+
+- ビルトイン4種: Cold (default) / Aggressive / Minimal / Ethereal
+- ユーザープリセット: localStorage に永続化
+- `levaStore.set(flatValues, false)` でドット記法パス（`"Shader.noiseScale"` 等）で一括復元
+- `levaStore.getData()` で現在値をキャプチャして保存
+- ReactiveOrb / AudioBloom / CameraRig は変更不要（levaStore.set → useControls が自動反映）
+
+### Keyboard Shortcuts
+
+| キー | アクション |
+| --- | --- |
+| `1`〜`4` | ビルトインプリセット切替 |
+| `5`〜 | ユーザープリセット切替 |
+| `S` | スクリーンショット（PNG） |
+
+INPUT/TEXTAREA にフォーカス中は無視（leva入力との競合回避）。
+
+### Screenshot
+
+- Canvas の `preserveDrawingBuffer: true` が必要（toDataURL 用）
+- `useScreenshot` が `useFrame(priority 2)` でキャプチャ
+  - AudioBloom の `useFrame(priority 1)` でPostFXレンダリング完了後に実行
 
 ### Git
 
