@@ -1,20 +1,24 @@
 # Sound Reactive 3D Art
 
 ## Project Overview
+
 Abletonの音にリアクティブに反応する没入型3D作品。
 `getDisplayMedia({ audio: true })` でシステムオーディオをキャプチャし、
 周波数解析結果でシェーダーベースのジオメトリを駆動する。
 
 ## Tech Stack
+
 - **Build**: Vite
 - **UI**: React 18 + TypeScript (strict)
 - **3D**: @react-three/fiber + @react-three/drei
 - **Audio**: Web Audio API (AnalyserNode)
 - **Shader**: GLSL (vertex + fragment)
+- **GUI**: leva (runtime parameter controls)
 
 ## Architecture Principles
 
 ### File Structure
+
 ```
 src/
   main.tsx          # エントリポイント
@@ -23,24 +27,28 @@ src/
     useAudio.ts     # Web Audio API / getDisplayMedia
     useFrequency.ts # 周波数解析・バンド分離
   components/       # R3Fコンポーネント（描画層）
-    ReactiveOrb.tsx # メインビジュアル
+    ReactiveOrb.tsx # メインビジュアル（Shader GUI付き）
+    AudioBloom.tsx  # ポストプロセッシング（PostFX GUI付き）
   shaders/          # GLSLファイル
     orb.vert        # 頂点シェーダー
     orb.frag        # フラグメントシェーダー
   types/            # 型定義
     audio.ts        # オーディオ関連の型
   utils/            # ユーティリティ（純粋関数）
+doc/                # ドキュメント（.gitignore対象）
 ```
 
 ### Design Rules
+
 1. **ロジックと描画の分離** — hooks/ にロジック、components/ に描画
 2. **シェーダー活用** — ビジュアル変形はGPU側で処理。CPU側はuniformの更新のみ
 3. **型安全** — `any` 禁止。AudioContext等のWeb API型も明示
-4. **最小UI** — 画面タップで音声キャプチャ開始するのみ。UIコンポーネント不要
+4. **最小UI** — 画面タップで音声キャプチャ開始するのみ。leva GUIは開発・ライブ操作用
 5. **シンプル** — 抽象化は必要になるまで作らない。1ファイルで済むなら1ファイル
 6. **パフォーマンス** — useFrame内でのアロケーション禁止。refで状態管理
 
 ### Coding Conventions
+
 - 関数コンポーネント + hooks のみ（classは使わない）
 - `export default` は使わない → named export のみ
 - シェーダーは `.vert` / `.frag` ファイルに分離し、raw importする
@@ -49,6 +57,7 @@ src/
 - コメントは「なぜ」だけ書く。「何を」は書かない
 
 ### Audio Pipeline
+
 ```
 getDisplayMedia({ audio: true })
   → MediaStreamSource
@@ -59,19 +68,43 @@ getDisplayMedia({ audio: true })
 ```
 
 ### Shader Uniforms Convention
+
 ```glsl
+// === オーディオ駆動（useFrequency から自動更新） ===
 uniform float uTime;       // 経過時間
 uniform float uBass;       // 低音域 (0.0 - 1.0, normalized)
 uniform float uMid;        // 中音域 (0.0 - 1.0)
 uniform float uTreble;     // 高音域 (0.0 - 1.0)
 uniform float uVolume;     // 全体音量 (0.0 - 1.0)
+
+// === leva GUI 制御（リアルタイム調整可能） ===
+// 頂点シェーダー (orb.vert)
+uniform float uNoiseScale;       // ノイズ空間スケール [0.5 - 4.0]
+uniform float uNoiseSpeed;       // ノイズ時間速度 [0.0 - 1.0]
+uniform float uBaseDisplacement; // 基本変位量 [0.0 - 0.5]
+uniform float uMidRange;         // mid変位追加量 [0.0 - 1.0]
+uniform float uBassScale;        // bassスケール倍率 [0.0 - 2.0]
+// フラグメントシェーダー (orb.frag)
+uniform float uBaseBrightness;   // ベース明度 [0.0 - 0.2]
+uniform float uFresnelPower;     // フレネルべき乗 [1.0 - 6.0]
+uniform vec3  uColdTint;         // 寒色ティント (color picker)
+uniform vec3  uWireColor;        // ワイヤー色 (color picker)
 ```
 
+### leva GUI Convention
+
+- 各コンポーネントが `useControls("フォルダ名", { ... })` で自分のパラメータを管理
+- フォルダ: Shader / PostFX / Camera
+- useEffect の依存配列に leva 値を入れない（再生成を避ける）→ useFrame で毎フレーム反映
+- カラー値は hex → Three.js Color で変換してシェーダーに渡す
+
 ### Git
+
 - コミットメッセージは日本語OK
 - 機能単位でコミット
 
 ### Commands
+
 - `npm run dev` — 開発サーバー起動
 - `npm run build` — プロダクションビルド
 - `npm run preview` — ビルドプレビュー
