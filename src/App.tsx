@@ -1,0 +1,68 @@
+import { Canvas } from '@react-three/fiber'
+import { useAudio } from './hooks/useAudio'
+import { useFrequency } from './hooks/useFrequency'
+import { ReactiveOrb } from './components/ReactiveOrb'
+
+/**
+ * Scene — R3F の Canvas 内で動くシーン
+ *
+ * Canvas 内のコンポーネントだけが useFrame 等の R3F hooks を使える。
+ * そのため useFrequency はここで呼ぶ。
+ */
+const Scene = ({ analyser }: { analyser: React.RefObject<AnalyserNode | null> }) => {
+  const bandsRef = useFrequency(analyser)
+
+  return (
+    <>
+      {/* 環境光: シーン全体をほんのり照らす（影なし） */}
+      <ambientLight intensity={0.2} />
+      <ReactiveOrb bandsRef={bandsRef} />
+    </>
+  )
+}
+
+/**
+ * App — アプリケーションルート
+ *
+ * - Canvas: R3Fの3D描画領域。フルスクリーン化はCSSで行う
+ * - キャプチャ未開始時だけクリック誘導テキストを表示
+ * - 画面クリックで getDisplayMedia() を起動
+ */
+export const App = () => {
+  const { analyser, isCapturing, startCapture } = useAudio()
+
+  return (
+    <div
+      onClick={isCapturing ? undefined : startCapture}
+      style={{
+        width: '100vw',
+        height: '100vh',
+        background: '#000',
+        cursor: isCapturing ? 'default' : 'pointer',
+      }}
+    >
+      <Canvas camera={{ position: [0, 0, 4], fov: 60 }}>
+        <Scene analyser={analyser} />
+      </Canvas>
+
+      {/* キャプチャ未開始時のみ表示する最小UI */}
+      {!isCapturing && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            color: 'rgba(255,255,255,0.4)',
+            fontSize: '14px',
+            fontFamily: 'monospace',
+            pointerEvents: 'none',
+            userSelect: 'none',
+          }}
+        >
+          click to capture audio
+        </div>
+      )}
+    </div>
+  )
+}
