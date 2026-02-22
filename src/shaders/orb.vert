@@ -12,9 +12,13 @@ uniform float uBass;
 uniform float uMid;
 uniform float uTreble;
 
-varying vec3 vPosition; // フラグメントシェーダーに変形後の位置を渡す
-varying vec3 vNormal;   // フラグメントシェーダーに法線を渡す
-varying float vDisplacement; // 変位量（色付けに使う）
+varying vec3 vPosition;
+varying vec3 vNormal;
+varying float vDisplacement;
+varying vec3 vBarycentric; // 重心座標（ワイヤーフレーム描画に使う）
+
+// 重心座標用の頂点属性（ReactiveOrbから注入）
+attribute vec3 aBarycentric;
 
 // =====================
 // Simplex-like 3Dノイズ
@@ -113,10 +117,10 @@ void main() {
   float scale = 1.0 + uBass * 0.8;
   newPosition *= scale;
 
-  // フラグメントシェーダーに値を渡す
   vPosition = newPosition;
   vNormal = normal;
   vDisplacement = displacement + detail;
+  vBarycentric = aBarycentric;
 
   // 最終的な画面上の位置を計算
   // projectionMatrix × modelViewMatrix × 頂点位置 = クリップ座標

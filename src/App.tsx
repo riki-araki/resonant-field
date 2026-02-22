@@ -1,8 +1,10 @@
 import { Canvas } from '@react-three/fiber'
+import { useFrame } from '@react-three/fiber'
 import { useAudio } from './hooks/useAudio'
 import { useFrequency } from './hooks/useFrequency'
 import { ReactiveOrb } from './components/ReactiveOrb'
 import { AudioBloom } from './components/AudioBloom'
+import type { FrequencyBands } from './types/audio'
 
 /**
  * Scene — R3F の Canvas 内で動くシーン
@@ -10,6 +12,30 @@ import { AudioBloom } from './components/AudioBloom'
  * Canvas 内のコンポーネントだけが useFrame 等の R3F hooks を使える。
  * そのため useFrequency はここで呼ぶ。
  */
+/**
+ * CameraRig — カメラをゆっくり自動旋回させる
+ * 球体の周りを一定速度で周回。音量で距離が微妙に変わる（呼吸感）
+ */
+const CameraRig = ({ bandsRef }: { bandsRef: React.RefObject<FrequencyBands> }) => {
+  useFrame((state) => {
+    const t = state.clock.elapsedTime
+    const bands = bandsRef.current
+
+    // 低音で距離が縮まる（3.5 〜 4.5）
+    const distance = 4.0 - bands.bass * 0.5
+
+    // ゆっくり周回（20秒で1周）
+    const speed = 0.3
+    state.camera.position.x = Math.sin(t * speed) * distance
+    state.camera.position.z = Math.cos(t * speed) * distance
+    state.camera.position.y = Math.sin(t * speed * 0.3) * 0.8
+
+    state.camera.lookAt(0, 0, 0)
+  })
+
+  return null
+}
+
 const Scene = ({ analyser }: { analyser: React.RefObject<AnalyserNode | null> }) => {
   const bandsRef = useFrequency(analyser)
 
@@ -17,7 +43,7 @@ const Scene = ({ analyser }: { analyser: React.RefObject<AnalyserNode | null> })
     <>
       <ambientLight intensity={0.2} />
       <ReactiveOrb bandsRef={bandsRef} />
-      {/* ポストプロセス: Canvasの描画結果に対して画面全体にエフェクトをかける */}
+      <CameraRig bandsRef={bandsRef} />
       <AudioBloom bandsRef={bandsRef} />
     </>
   )
