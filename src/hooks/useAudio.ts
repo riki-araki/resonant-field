@@ -27,33 +27,55 @@ export const useAudio = () => {
   const startCapture = useCallback(async () => {
     if (contextRef.current) return // 二重起動防止
 
-    // getDisplayMedia: 画面共有ダイアログが開く
-    // audio: true でシステムオーディオを要求
-    // video: true は必須（APIの仕様上、videoなしでは呼べないブラウザがある）
-    const stream = await navigator.mediaDevices.getDisplayMedia({
-      audio: true,
-      video: true, // videoトラックは使わないが、API仕様上必要
-    })
+    try {
+      // getDisplayMedia: 画面共有ダイアログが開く
+      // audio: true でシステムオーディオを要求
+      // video: true は必須（APIの仕様上、videoなしでは呼べないブラウザがある）
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        audio: true,
+        video: true,
+      })
 
-    // ビデオトラックは不要なので即停止（音声だけ使う）
-    stream.getVideoTracks().forEach((track) => track.stop())
+      // ビデオトラックは「停止ではなく無効化」する
+      // stop() するとストリーム自体が終了し、音声トラックも巻き添えで死ぬ
+      // enabled = false なら映像処理だけスキップされ、ストリームは生き続ける
+      stream.getVideoTracks().forEach((track) => {
+        track.enabled = false
+      })
 
-    // Web Audio API のセットアップ
-    const ctx = new AudioContext()
-    const source = ctx.createMediaStreamSource(stream)
-    const analyser = ctx.createAnalyser()
+      // 音声トラックが取得できたか確認
+      const audioTracks = stream.getAudioTracks()
+      if (audioTracks.length === 0) {
+        console.warn('音声トラックが取得できませんでした。「システムの音声を共有」にチェックを入れてください')
+        return
+      }
+      console.log('Audio track acquired:', audioTracks[0].label)
 
-    // fftSize: FFT（高速フーリエ変換）の窓サイズ
-    // frequencyBinCount = fftSize / 2 = 1024個の周波数ビンが得られる
-    analyser.fftSize = FFT_SIZE
-    analyser.smoothingTimeConstant = 0.8 // 0-1: 高いほど滑らか（前フレームとの補間）
+      // Web Audio API のセットアップ
+      const ctx = new AudioContext()
 
-    // source → analyser を接続（destinationには繋がない = スピーカーから音は出ない）
-    source.connect(analyser)
+      // ブラウザのポリシーで AudioContext が suspended になることがある
+      // ユーザー操作の直後なので resume() で確実に起動する
+      if (ctx.state === 'suspended') {
+        await ctx.resume()
+      }
 
-    analyserRef.current = analyser
-    contextRef.current = ctx
-    setIsCapturing(true)
+      const source = ctx.createMediaStreamSource(stream)
+      const analyser = ctx.createAnalyser()
+
+      analyser.fftSize = FFT_SIZE
+      analyser.smoothingTimeConstant = 0.8
+
+      source.connect(analyser)
+
+      analyserRef.current = analyser
+      contextRef.current = ctx
+      setIsCapturing(true)
+      console.log('Audio capture started successfully')
+    } catch (err) {
+      // ユーザーが共有ダイアログをキャンセルした場合もここに来る
+      console.error('Audio capture failed:', err)
+    }
   }, [])
 
   return { analyser: analyserRef, isCapturing, startCapture }

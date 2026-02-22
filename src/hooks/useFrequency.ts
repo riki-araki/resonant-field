@@ -66,6 +66,7 @@ export const useFrequency = (analyserRef: RefObject<AnalyserNode | null>) => {
     bands.mid = bandAverage(data, BASS_END, MID_END)
     bands.treble = bandAverage(data, MID_END, data.length)
     bands.volume = bandAverage(data, 0, data.length)
+
   })
 
   return bandsRef
