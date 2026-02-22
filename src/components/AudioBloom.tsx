@@ -1,5 +1,6 @@
 import { useEffect, useRef, type RefObject } from 'react'
 import { useThree, useFrame } from '@react-three/fiber'
+import { useControls } from 'leva'
 import {
   EffectComposer,
   EffectPass,
@@ -30,14 +31,30 @@ export const AudioBloom = ({ bandsRef }: Props) => {
   const composerRef = useRef<EffectComposer | null>(null)
   const bloomRef = useRef<BloomEffect | null>(null)
   const chromaticRef = useRef<ChromaticAberrationEffect | null>(null)
+  const vignetteRef = useRef<VignetteEffect | null>(null)
+
+  // leva: "PostFX" フォルダにグルーピング
+  const {
+    bloomIntensity,
+    bloomThreshold,
+    aberrationMax,
+    vignetteDark,
+    vignetteOffset,
+  } = useControls('PostFX', {
+    bloomIntensity:  { value: 0.8,   min: 0.0, max: 3.0,  step: 0.1 },
+    bloomThreshold:  { value: 0.4,   min: 0.0, max: 1.0,  step: 0.05 },
+    aberrationMax:   { value: 0.009, min: 0.0, max: 0.03, step: 0.001 },
+    vignetteDark:    { value: 0.7,   min: 0.0, max: 1.5,  step: 0.05 },
+    vignetteOffset:  { value: 0.3,   min: 0.0, max: 1.0,  step: 0.05 },
+  })
 
   useEffect(() => {
     const renderPass = new RenderPass(scene, camera)
 
     // Bloom: 控えめに設定（無機質 = ギラギラしない）
     const bloom = new BloomEffect({
-      intensity: 0.8,
-      luminanceThreshold: 0.4,
+      intensity: bloomIntensity,
+      luminanceThreshold: bloomThreshold,
       luminanceSmoothing: 0.2,
       mipmapBlur: true,
       kernelSize: KernelSize.MEDIUM,
@@ -54,8 +71,8 @@ export const AudioBloom = ({ bandsRef }: Props) => {
     // Vignette: 画面の四隅を暗くする
     // 視野を狭める効果 → 没入感 + 無機質なモニター感
     const vignette = new VignetteEffect({
-      darkness: 0.7,
-      offset: 0.3,
+      darkness: vignetteDark,
+      offset: vignetteOffset,
     })
 
     const effectPass = new EffectPass(camera, bloom, chromatic, vignette)
@@ -67,6 +84,7 @@ export const AudioBloom = ({ bandsRef }: Props) => {
     composerRef.current = composer
     bloomRef.current = bloom
     chromaticRef.current = chromatic
+    vignetteRef.current = vignette
 
     return () => {
       composer.dispose()
@@ -80,18 +98,24 @@ export const AudioBloom = ({ bandsRef }: Props) => {
   useFrame((_state, delta) => {
     const bloom = bloomRef.current
     const chromatic = chromaticRef.current
+    const vignette = vignetteRef.current
     const composer = composerRef.current
-    if (!bloom || !chromatic || !composer) return
+    if (!bloom || !chromatic || !vignette || !composer) return
 
     const bands = bandsRef.current
 
-    // Bloom: 音量で控えめに変調
-    bloom.intensity = 0.5 + bands.volume * 1.5
+    // Bloom: leva の基準値 + 音量で変調
+    bloom.intensity = bloomIntensity + bands.volume * 1.5
+    bloom.luminanceMaterial.threshold = bloomThreshold
 
     // ChromaticAberration: 低音ヒットでRGBがずれる → 衝撃感
-    // bass が 0 のとき ≈ 0.001、bass が 1 のとき ≈ 0.01
-    const aberrationStrength = 0.001 + bands.bass * 0.009
+    // bass が 0 のとき ≈ 0.001、bass が 1 のとき ≈ aberrationMax
+    const aberrationStrength = 0.001 + bands.bass * aberrationMax
     chromatic.offset.set(aberrationStrength, aberrationStrength)
+
+    // Vignette: leva から直接更新
+    vignette.darkness = vignetteDark
+    vignette.offset = vignetteOffset
 
     composer.render(delta)
   }, 1)

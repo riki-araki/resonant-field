@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { Float32BufferAttribute, type Mesh, type ShaderMaterial } from 'three'
+import { useControls } from 'leva'
+import { Color, Float32BufferAttribute, type Mesh, type ShaderMaterial } from 'three'
 import type { FrequencyBands } from '../types/audio'
 
 import vertexShader from '../shaders/orb.vert?raw'
@@ -22,6 +23,9 @@ const BARYCENTRIC_VECTORS = [
   0, 0, 1,
 ]
 
+// hex→vec3変換用の再利用インスタンス（useFrame内でのアロケーション回避）
+const _color = new Color()
+
 type Props = {
   bandsRef: RefObject<FrequencyBands>
 }
@@ -30,6 +34,30 @@ export const ReactiveOrb = ({ bandsRef }: Props) => {
   const meshRef = useRef<Mesh>(null)
   const materialRef = useRef<ShaderMaterial>(null)
 
+  // leva: "Shader" フォルダにグルーピングされたコントロール群
+  // useControls の返り値はスライダーを動かすたびにリアルタイムに変わる
+  const {
+    noiseScale,
+    noiseSpeed,
+    baseDisplacement,
+    midRange,
+    bassScale,
+    baseBrightness,
+    fresnelPower,
+    coldTint,
+    wireColor,
+  } = useControls('Shader', {
+    noiseScale:       { value: 1.5,  min: 0.5, max: 4.0, step: 0.1 },
+    noiseSpeed:       { value: 0.3,  min: 0.0, max: 1.0, step: 0.01 },
+    baseDisplacement: { value: 0.1,  min: 0.0, max: 0.5, step: 0.01 },
+    midRange:         { value: 0.4,  min: 0.0, max: 1.0, step: 0.01 },
+    bassScale:        { value: 0.8,  min: 0.0, max: 2.0, step: 0.1 },
+    baseBrightness:   { value: 0.03, min: 0.0, max: 0.2, step: 0.005 },
+    fresnelPower:     { value: 3.0,  min: 1.0, max: 6.0, step: 0.1 },
+    coldTint:         '#6699FF',
+    wireColor:        '#263349',
+  })
+
   const uniforms = useMemo(
     () => ({
       uTime: { value: 0 },
@@ -37,6 +65,16 @@ export const ReactiveOrb = ({ bandsRef }: Props) => {
       uMid: { value: 0 },
       uTreble: { value: 0 },
       uVolume: { value: 0 },
+      // leva 制御の新 uniform
+      uNoiseScale: { value: 1.5 },
+      uNoiseSpeed: { value: 0.3 },
+      uBaseDisplacement: { value: 0.1 },
+      uMidRange: { value: 0.4 },
+      uBassScale: { value: 0.8 },
+      uBaseBrightness: { value: 0.03 },
+      uFresnelPower: { value: 3.0 },
+      uColdTint: { value: new Color(0.4, 0.6, 1.0) },
+      uWireColor: { value: new Color(0.15, 0.2, 0.3) },
     }),
     [],
   )
@@ -70,11 +108,25 @@ export const ReactiveOrb = ({ bandsRef }: Props) => {
 
     const bands = bandsRef.current
 
+    // オーディオ uniform
     mat.uniforms.uTime.value = state.clock.elapsedTime
     mat.uniforms.uBass.value = bands.bass
     mat.uniforms.uMid.value = bands.mid
     mat.uniforms.uTreble.value = bands.treble
     mat.uniforms.uVolume.value = bands.volume
+
+    // leva 制御の uniform をフレームごとに更新
+    mat.uniforms.uNoiseScale.value = noiseScale
+    mat.uniforms.uNoiseSpeed.value = noiseSpeed
+    mat.uniforms.uBaseDisplacement.value = baseDisplacement
+    mat.uniforms.uMidRange.value = midRange
+    mat.uniforms.uBassScale.value = bassScale
+    mat.uniforms.uBaseBrightness.value = baseBrightness
+    mat.uniforms.uFresnelPower.value = fresnelPower
+
+    // hex文字列 → Color（0〜1のRGB）に変換してシェーダーに渡す
+    mat.uniforms.uColdTint.value.set(_color.set(coldTint))
+    mat.uniforms.uWireColor.value.set(_color.set(wireColor))
   })
 
   return (

@@ -12,6 +12,13 @@ uniform float uBass;
 uniform float uMid;
 uniform float uTreble;
 
+// leva GUI から制御するパラメータ
+uniform float uNoiseScale;       // ノイズの空間スケール（大きいほど細かい凹凸）
+uniform float uNoiseSpeed;       // ノイズの時間変化速度
+uniform float uBaseDisplacement; // 音がなくても常にある揺れ量
+uniform float uMidRange;         // 中音域による変位の最大追加量
+uniform float uBassScale;        // 低音によるスケール倍率
+
 varying vec3 vPosition;
 varying vec3 vNormal;
 varying float vDisplacement;
@@ -99,11 +106,10 @@ void main() {
   // position: R3Fが渡す元の球体の頂点座標
   // uTime で時間変化させ、ゆっくりうねるようにする
 
-  float noise = snoise(position * 1.5 + uTime * 0.3);
+  float noise = snoise(position * uNoiseScale + uTime * uNoiseSpeed);
 
   // uMid（中音域）でノイズの強さを変調
-  // 0.1 = ベースの揺れ量、uMid で最大 +0.4 の揺れが加わる
-  float displacement = noise * (0.1 + uMid * 0.4);
+  float displacement = noise * (uBaseDisplacement + uMid * uMidRange);
 
   // uTreble（高音域）で細かい揺れを追加
   float detail = snoise(position * 4.0 + uTime * 0.8) * uTreble * 0.15;
@@ -113,8 +119,8 @@ void main() {
   vec3 newPosition = position + normal * (displacement + detail);
 
   // === uBass でスケール ===
-  // 低音が大きいほど球体全体が膨らむ (1.0 〜 1.8倍)
-  float scale = 1.0 + uBass * 0.8;
+  // 低音が大きいほど球体全体が膨らむ
+  float scale = 1.0 + uBass * uBassScale;
   newPosition *= scale;
 
   vPosition = newPosition;

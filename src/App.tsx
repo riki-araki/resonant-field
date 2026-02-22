@@ -1,5 +1,5 @@
-import { Canvas } from '@react-three/fiber'
-import { useFrame } from '@react-three/fiber'
+import { Canvas, useFrame } from '@react-three/fiber'
+import { useControls } from 'leva'
 import { useAudio } from './hooks/useAudio'
 import { useFrequency } from './hooks/useFrequency'
 import { ReactiveOrb } from './components/ReactiveOrb'
@@ -17,18 +17,23 @@ import type { FrequencyBands } from './types/audio'
  * 球体の周りを一定速度で周回。音量で距離が微妙に変わる（呼吸感）
  */
 const CameraRig = ({ bandsRef }: { bandsRef: React.RefObject<FrequencyBands> }) => {
+  // leva: "Camera" フォルダにグルーピング
+  const { distance, orbitSpeed, verticalAmp } = useControls('Camera', {
+    distance:    { value: 4.0, min: 2.0, max: 8.0, step: 0.1 },
+    orbitSpeed:  { value: 0.3, min: 0.0, max: 1.0, step: 0.01 },
+    verticalAmp: { value: 0.8, min: 0.0, max: 2.0, step: 0.1 },
+  })
+
   useFrame((state) => {
     const t = state.clock.elapsedTime
     const bands = bandsRef.current
 
-    // 低音で距離が縮まる（3.5 〜 4.5）
-    const distance = 4.0 - bands.bass * 0.5
+    // 低音で距離が縮まる
+    const d = distance - bands.bass * 0.5
 
-    // ゆっくり周回（20秒で1周）
-    const speed = 0.3
-    state.camera.position.x = Math.sin(t * speed) * distance
-    state.camera.position.z = Math.cos(t * speed) * distance
-    state.camera.position.y = Math.sin(t * speed * 0.3) * 0.8
+    state.camera.position.x = Math.sin(t * orbitSpeed) * d
+    state.camera.position.z = Math.cos(t * orbitSpeed) * d
+    state.camera.position.y = Math.sin(t * orbitSpeed * 0.3) * verticalAmp
 
     state.camera.lookAt(0, 0, 0)
   })
