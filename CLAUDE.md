@@ -24,12 +24,14 @@ src/
   main.tsx          # エントリポイント
   App.tsx           # Canvas + シーン構成 + プリセットUI統合
   presets.ts        # ビルトインプリセット4種のデータ
+  midi.ts           # MIDI CCマッピング設定（DEFAULT_CC_MAP）
   hooks/            # カスタムフック（ロジック層）
     useAudio.ts     # Web Audio API / getDisplayMedia
     useFrequency.ts # 周波数解析・バンド分離
     usePresets.ts   # levaStore経由のプリセット管理 + localStorage永続化
     useScreenshot.ts # Canvas→PNG キャプチャ + ダウンロード
     useKeyboard.ts  # キーボードショートカット登録
+    useMIDI.ts      # Web MIDI API接続 + CC→levaStore更新
   components/       # R3Fコンポーネント（描画層）
     ReactiveOrb.tsx # メインビジュアル（Shader GUI付き）
     AudioBloom.tsx  # ポストプロセッシング（PostFX GUI付き）
@@ -39,6 +41,7 @@ src/
   types/            # 型定義
     audio.ts        # オーディオ関連の型
     preset.ts       # プリセット関連の型
+    midi.ts         # MIDI関連の型（MidiCCMapping, MidiStatus）
   utils/            # ユーティリティ（純粋関数）
 doc/                # ドキュメント（.gitignore対象）
 ```
@@ -111,6 +114,24 @@ uniform vec3  uWireColor;        // ワイヤー色 (color picker)
 - `levaStore.getData()` で現在値をキャプチャして保存
 - ReactiveOrb / AudioBloom / CameraRig は変更不要（levaStore.set → useControls が自動反映）
 
+### MIDI CC Control
+
+Ableton（またはMIDIコントローラー）から CC を送信してパラメータをリアルタイム制御。
+
+```
+Ableton → IAC Driver → ブラウザ
+  → navigator.requestMIDIAccess()
+  → MIDIInput.onmidimessage
+  → CC番号でルックアップ → ccToValue(0-127 → min-max)
+  → levaStore.set() → useControls 自動反映
+```
+
+- `src/midi.ts` にデフォルトCCマッピング（CC 1-15 → 15パラメータ）
+- `src/hooks/useMIDI.ts` で自動接続 + ホットプラグ対応
+- プリセット・leva GUIと同じ `levaStore.set()` 経路を共用
+- CC非対応: geometry（select型）、coldTint/wireColor（色型）
+- 画面左下に接続ステータス表示
+
 ### Keyboard Shortcuts
 
 | キー | アクション |
@@ -118,6 +139,7 @@ uniform vec3  uWireColor;        // ワイヤー色 (color picker)
 | `1`〜`4` | ビルトインプリセット切替 |
 | `5`〜 | ユーザープリセット切替 |
 | `S` | スクリーンショット（PNG） |
+| `G` | ジオメトリ巡回 |
 
 INPUT/TEXTAREA にフォーカス中は無視（leva入力との競合回避）。
 

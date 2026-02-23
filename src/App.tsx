@@ -6,10 +6,12 @@ import { useFrequency } from './hooks/useFrequency'
 import { usePresets } from './hooks/usePresets'
 import { useScreenshot } from './hooks/useScreenshot'
 import { useKeyboard } from './hooks/useKeyboard'
+import { useMIDI } from './hooks/useMIDI'
 import { ReactiveOrb, GEOMETRY_TYPES } from './components/ReactiveOrb'
 import { AudioBloom } from './components/AudioBloom'
 import { BUILTIN_PRESETS } from './presets'
 import type { FrequencyBands } from './types/audio'
+import type { MidiStatus } from './types/midi'
 
 /**
  * Scene — R3F の Canvas 内で動くシーン
@@ -75,6 +77,37 @@ const Scene = ({ analyser, screenshotRef }: {
   )
 }
 
+const MIDI_STATUS_COLOR: Record<MidiStatus, string> = {
+  connected: 'rgba(100,255,140,0.5)',
+  pending: 'rgba(255,255,255,0.3)',
+  disconnected: 'rgba(255,255,255,0.3)',
+  unavailable: 'rgba(255,255,255,0.3)',
+}
+
+const MIDI_STATUS_TEXT: Record<MidiStatus, (n: number) => string> = {
+  connected: (n) => `MIDI: ${n} device(s)`,
+  pending: () => 'MIDI: connecting…',
+  disconnected: () => 'MIDI: no devices',
+  unavailable: () => 'MIDI: unavailable',
+}
+
+const MidiStatusLabel = ({ status, deviceCount }: { status: MidiStatus; deviceCount: number }) => (
+  <div
+    style={{
+      position: 'absolute',
+      bottom: 12,
+      left: 12,
+      color: MIDI_STATUS_COLOR[status],
+      fontSize: '11px',
+      fontFamily: 'monospace',
+      pointerEvents: 'none',
+      userSelect: 'none',
+    }}
+  >
+    {MIDI_STATUS_TEXT[status](deviceCount)}
+  </div>
+)
+
 /**
  * App — アプリケーションルート
  *
@@ -128,6 +161,8 @@ export const App = () => {
 
   useKeyboard(keyMap)
 
+  const { status: midiStatus, deviceCount: midiDeviceCount } = useMIDI()
+
   return (
     <div
       onClick={isCapturing ? undefined : startCapture}
@@ -145,6 +180,8 @@ export const App = () => {
       >
         <Scene analyser={analyser} screenshotRef={screenshotRef} />
       </Canvas>
+
+      <MidiStatusLabel status={midiStatus} deviceCount={midiDeviceCount} />
 
       {/* キャプチャ未開始時のみ表示する最小UI */}
       {!isCapturing && (
